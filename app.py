@@ -157,7 +157,7 @@ if arquivo_enviado is not None:
             estilo_tabela_cel_esq = ParagraphStyle('TabCelEsq', parent=styles['Normal'], fontSize=7, textColor=colors.black, alignment=0)
             estilo_tabela_cel_ver = ParagraphStyle('TabCelVer', parent=styles['Normal'], fontSize=7, fontName='Helvetica-Bold', textColor=colors.HexColor('#dc2626'), alignment=1)
 
-            el_tce.append(Paragraph("<b>TRIBUNAL DE CONTAS DO ESTADO DO PARANÁ (TCE-PR)</b>", ParagraphStyle('TitTCE', parent=styles['Heading1'], fontSize=14, textColor=colors.HexColor('#004a80'), spaceAfter=4)))
+            el_tce.append(Paragraph("<b>TRIBUNAL DE CONTAS DO ESTADO DO PARANÁ (TCE-PR)</b>", ParagraphStyle('TitTCE', parent=styles['Heading1'], fontSize=14, textColor=colors.HexColor('#004a80'], spaceAfter=4)))
             el_tce.append(Paragraph("<b>Cadastro de Restrições ao Direito de Contratar - Espelho de Consulta Oficial</b>", estilo_texto))
             el_tce.append(Spacer(1, 4))
             el_tce.append(Paragraph(f"<b>Data da Consulta:</b> {data_hora_atual}", estilo_texto))
@@ -219,7 +219,7 @@ if arquivo_enviado is not None:
 
             doc_tce.build(el_tce)
 
-            # --- DOCUMENTO 3: CERTIDÃO OFICIAL DO TCU POR CPF (SÓCIOS) - LAYOUT OFICIAL IDÊNTICO ---
+            # --- DOCUMENTO 3: CERTIDÃO OFICIAL DO TCU POR CPF (SÓCIOS) - LAYOUT EXATO OFICIAL ---
             certidoes_socios = []
             
             for cpf_socio in cpfs_encontrados:
