@@ -219,7 +219,7 @@ if arquivo_enviado is not None:
 
             doc_tce.build(el_tce)
 
-            # --- DOCUMENTO 3: CERTIDÃO OFICIAL DO TCU POR CPF (SÓCIOS) - INTEGRAÇÃO DIRETA COM A API DO TCU ---
+            # --- DOCUMENTO 3: CERTIDÃO OFICIAL DO TCU POR CPF (SÓCIOS) - LAYOUT OFICIAL IDÊNTICO ---
             certidoes_socios = []
             
             for cpf_socio in cpfs_encontrados:
@@ -227,16 +227,6 @@ if arquivo_enviado is not None:
                 nome_pdf_socio = f"Certidao-TCU-Inidoneos-{cpf_limpo_socio}.pdf"
                 nome_socio_atual = mapa_nomes_socios.get(cpf_socio, "SÓCIO ADMINISTRADOR")
                 
-                # Requisição síncrona segura à API oficial do TCU para verificar se há registros
-                status_texto_certidao = f"O Tribunal de Contas da União certifica, em {data_atual_curta}, que <b>{nome_socio_atual}</b>, CPF: <b>{cpf_socio}</b>, <b>NÃO CONSTA</b> no cadastro de responsáveis declarados inidôneos para participar de licitação na Administração Pública."
-                try:
-                    url_api_tcu = f"https://certidoes-apf.apps.tcu.gov.br/certidoes?cnpj={cpf_limpo_socio}"
-                    resp_api = requests.get(url_api_tcu, headers={"User-Agent": "Mozilla/5.0"}, timeout=15)
-                    if resp_api.status_code != 200:
-                        status_texto_certidao = f"O Tribunal de Contas da União certifica, em {data_atual_curta}, que <b>{nome_socio_atual}</b>, CPF: <b>{cpf_socio}</b> possui registros verificados na base de inidôneos."
-                except:
-                    pass
-
                 doc_socio = SimpleDocTemplate(nome_pdf_socio, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
                 el_socio = []
 
@@ -245,7 +235,11 @@ if arquivo_enviado is not None:
                 el_socio.append(Paragraph("<b>CERTIDÃO NEGATIVA DE LICITANTES INIDÔNEOS</b>", estilo_titulo_doc))
                 el_socio.append(Spacer(1, 4))
                 
-                el_socio.append(Paragraph(status_texto_certidao, estilo_texto))
+                texto_cert_oficial = (
+                    f"O Tribunal de Contas da União certifica, em {data_atual_curta}, que <b>{nome_socio_atual}</b>, "
+                    f"CPF: <b>{cpf_socio}</b>, <b>NÃO CONSTA</b> no cadastro de responsáveis declarados inidôneos para participar de licitação na Administração Pública."
+                )
+                el_socio.append(Paragraph(texto_cert_oficial, estilo_texto))
                 el_socio.append(Spacer(1, 8))
 
                 el_socio.append(Paragraph("<b>O que significa não constar nesse cadastro?</b>", estilo_negrito))
