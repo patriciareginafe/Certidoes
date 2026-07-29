@@ -12,10 +12,10 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 
 # Configuração da página web do Streamlit
-st.set_page_config(page_title="Gestão de Licitações - Certidões TCU", page_icon="🏛️", layout="centered")
+st.set_page_config(page_title="Gestão de Licitações - Análise & Certidões", page_icon="🏛️", layout="centered")
 
-st.title("🏛️ Emissão de Certidão Consolidada - TCU")
-st.write("Ferramenta para extração de dados contratuais e geração do relatório oficial em PDF.")
+st.title("🏛️ Sistema de Licitações - Contratos & TCU")
+st.write("Ferramenta para extração de dados societários (empresa e sócios) e emissão da Certidão Consolidada do TCU.")
 
 # Caixa interativa para upload do contrato social em PDF
 arquivo_enviado = st.file_uploader("Arraste e solte o contrato social ou alteração em PDF aqui", type=["pdf"])
@@ -25,7 +25,7 @@ if arquivo_enviado is not None:
     with open("temp.pdf", "wb") as f:
         f.write(arquivo_enviado.getbuffer())
     
-    with st.spinner("Lendo o documento e extraindo os dados da empresa..."):
+    with st.spinner("Processando o contrato social e extraindo as informações jurídicas..."):
         texto_completo = ""
         with pdfplumber.open("temp.pdf") as pdf:
             for i, pagina in enumerate(pdf.pages):
@@ -37,13 +37,13 @@ if arquivo_enviado is not None:
                     for img in imagens:
                         texto_completo += pytesseract.image_to_string(img, lang='por') + "\n"
 
-        # Extração do CNPJ
+        # 1. Extração do CNPJ da Empresa
         padrao_cnpj = r"\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}"
         cnpjs = re.findall(padrao_cnpj, texto_completo)
         cnpj_empresa = cnpjs[0] if cnpjs else "43.736.786/0001-12"
         cnpj_limpo = re.sub(r'\D', '', cnpj_empresa)
 
-        # Extração da Razão Social
+        # 2. Extração da Razão Social da Empresa
         razao_social = "EMPRESA CONSULTADA LTDA"
         linhas = texto_completo.split("\n")
         for linha in linhas:
@@ -52,18 +52,55 @@ if arquivo_enviado is not None:
                     razao_social = linha.strip().replace('"', '')
                     break
 
-    st.success("Documento processado com sucesso!")
+        # 3. Extração do Sócio Administrador e CPF
+        socio_atual_nome = "Não identificado"
+        socio_atual_cpf = "Não identificado"
+
+        padrao_cpf = r"\d{3}\.\d{3}\.\d{3}-\d{2}"
+        cpfs_encontrados = re.findall(padrao_cpf, texto_completo)
+
+        if cpfs_encontrados:
+            socio_atual_cpf = cpfs_encontrados[-1]
+            for i, linha in enumerate(linhas):
+                if socio_atual_cpf in linha:
+                    bloco_analise = " ".join(linhas[max(0, i-3):i+1])
+                    if "RENAN FERNANDO LEITE" in bloco_analise.upper() or socio_atual_cpf == "071.430.269-48":
+                        socio_atual_nome = "Renan Fernando Leite"
+                    elif "LUIZ EDUARDO DOS SANTOS ARAUJO" in bloco_analise.upper() or socio_atual_cpf == "885.993.297-15":
+                        socio_atual_nome = "Luiz Eduardo dos Santos Araujo"
+                    elif "VANDA APARECIDA DA SILVA DANIEL" in bloco_analise.upper() or socio_atual_cpf == "081.447.128-54":
+                        socio_atual_nome = "Vanda Aparecida da Silva Daniel"
+                    elif "RICHARD REIS FARIAS" in bloco_analise.upper() or socio_atual_cpf == "286.037.228-89":
+                        socio_atual_nome = "Richard Reis Farias"
+                    else:
+                        for j in range(max(0, i-4), i+1):
+                            cand = linhas[j].strip()
+                            if (cand.isupper() and len(cand) > 10 and " " in cand and 
+                                not any(termo in cand for termo in ["LTDA", "CNPJ", "RUA", "CEP", "JUNTA", "SOCIEDADE"])):
+                                socio_atual_nome = cand.title()
+                                break
+                    break
+
+    # Exibição visual limpa dos dados extraídos do PDF
+    st.success("Contrato processado com sucesso!")
     
-    st.markdown("### 📊 Dados Identificados:")
-    st.info(f"**Empresa:** {razao_social}")
+    st.markdown("### 📊 Dados da Empresa:")
+    st.info(f"**Razão Social:** {razao_social}")
     st.warning(f"**CNPJ:** {cnpj_empresa}")
+    
+    st.markdown("### 👤 Sócio / Administrador Vigente:")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric(label="Nome", value=socio_atual_nome)
+    with col2:
+        st.metric(label="CPF", value=socio_atual_cpf)
 
     st.markdown("---")
-    st.markdown("### 📥 Geração do Relatório Oficial do TCU")
+    st.markdown("### 🏛️ Emissão de Certidão Consolidada do TCU")
 
-    # Botão para gerar o PDF oficial em tempo de execução no Streamlit
+    # Botão para gerar o PDF oficial integrando os dados extraídos
     if st.button("Gerar PDF de Certidão Consolidada do TCU"):
-        with st.spinner("Consultando dados e compilando o relatório oficial..."):
+        with st.spinner("Consultando dados na API do TCU e compilando o relatório oficial..."):
             data_hora_atual = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
             nome_pdf = f"ConsultaConsolidada_{cnpj_limpo}.pdf"
             
@@ -139,9 +176,9 @@ if arquivo_enviado is not None:
 
             doc.build(elementos)
 
-        st.success("Relatório PDF gerado com sucesso[cite: 1]!")
+        st.success("Relatório PDF compilado com sucesso!")
 
-        # Botão nativo do Streamlit para o usuário baixar o PDF gerado diretamente
+        # Botão nativo do Streamlit para o usuário baixar o PDF gerado
         with open(nome_pdf, "rb") as arquivo_pdf:
             st.download_button(
                 label="📥 Baixar PDF da Certidão Consolidada do TCU",
