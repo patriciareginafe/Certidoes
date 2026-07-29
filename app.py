@@ -10,12 +10,13 @@ from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
+from playwright.sync_api import sync_playwright
 
 # Configuração da página web do Streamlit
 st.set_page_config(page_title="Gestão de Licitações - Análise & Certidões", page_icon="🏛️", layout="centered")
 
 st.title("🏛️ Sistema de Licitações - Contratos, TCU & TCE-PR")
-st.write("Ferramenta integrada para extração de dados societários, emissão do relatório do TCU e espelho de consulta do TCE-PR.")
+st.write("Ferramenta integrada para extração de dados societários, emissão do relatório do TCU e captura real do print do TCE-PR.")
 
 # Caixa interativa para upload do contrato social em PDF
 arquivo_enviado = st.file_uploader("Arraste e solte o contrato social ou alteração em PDF aqui", type=["pdf"])
@@ -96,11 +97,11 @@ if arquivo_enviado is not None:
         st.metric(label="CPF", value=socio_atual_cpf)
 
     st.markdown("---")
-    st.markdown("### 🏛️ Emissão de Certidões & Espelho de Consulta TCE-PR")
+    st.markdown("### 🏛️ Emissão de Certidões & Print Real do TCE-PR")
 
-    # Botão unificado para processar os relatórios
-    if st.button("Executar Consultas e Gerar Documentos"):
-        with st.spinner("Processando consultas nos portais do TCU e gerando o espelho do TCE-PR..."):
+    # Botão unificado para processar as consultas
+    if st.button("Executar Consultas e Capturar Telas"):
+        with st.spinner("Executando automação e gerando os relatórios oficiais..."):
             
             data_hora_atual = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
             
@@ -169,56 +170,40 @@ if arquivo_enviado is not None:
             elementos_tcu.append(Spacer(1, 10))
             doc_tcu.build(elementos_tcu)
 
-            # --- PARTE 2: GERAÇÃO DO ESPELHO DE TELA DO TCE-PR EM PDF ---
-            nome_pdf_tce = f"EspelhoConsulta_TCE_{cnpj_limpo}.pdf"
-            doc_tce = SimpleDocTemplate(nome_pdf_tce, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
-            elementos_tce = []
-
-            estilo_titulo_tce = ParagraphStyle('TituloTCE', parent=styles['Heading1'], fontSize=13, textColor=colors.HexColor('#004a80'), spaceAfter=4)
-            
-            elementos_tce.append(Paragraph("<b>TRIBUNAL DE CONTAS DO ESTADO DO PARANÁ (TCE-PR)</b>", estilo_titulo_tce))
-            elementos_tce.append(Paragraph("<b>Cadastro de Restrições ao Direito de Contratar - Consultar</b>", estilo_texto))
-            elementos_tce.append(Spacer(1, 6))
-            elementos_tce.append(Paragraph(f"<b>Data da Consulta:</b> {data_hora_atual}", estilo_texto))
-            elementos_tce.append(Spacer(1, 10))
-
-            elementos_tce.append(Paragraph("<b>Parâmetros da Pesquisa:</b>", estilo_negrito))
-            elementos_tce.append(Paragraph(f"<b>Tipo Documento:</b> CNPJ", estilo_texto))
-            elementos_tce.append(Paragraph(f"<b>Número do Documento:</b> {cnpj_empresa}", estilo_texto))
-            elementos_tce.append(Paragraph(f"<b>Razão Social:</b> {razao_social}", estilo_texto))
-            elementos_tce.append(Spacer(1, 15))
-
-            # Validação do resultado no TCE-PR
-            url_tce = "https://www.tce.pr.gov.br/para-o-fiscalizado/sistemas/cadastro-de-restricoes/cadastro-de-restricoes-consultar.htm"
-            status_tce_resultado = "NENHUM ITEM ENCONTRADO!"
+            # --- PARTE 2: CAPTURA REAL DO PRINT DA TELA DO TCE-PR VIA PLAYWRIGHT ---
+            nome_print_tce = f"Print_TCE_{cnpj_limpo}.png"
             try:
-                resp_tce = requests.get(url_tce, headers={"User-Agent": "Mozilla/5.0"}, params={"tipoDocumento": "CNPJ", "numeroDocumento": cnpj_limpo}, timeout=15)
-                if resp_tce.status_code == 200 and ("RF LEITE" in resp_tce.text or "Itens encontrados" in resp_tce.text):
-                    status_tce_resultado = "⚠️ ATENÇÃO: REGISTROS ENCONTRADOS NO SISTEMA!"
-            except:
-                pass
+                with sync_playwright() as p:
+                    browser = p.chromium.launch(
+                        headless=True,
+                        args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu"]
+                    )
+                    context = browser.new_context(viewport={"width": 1366, "height": 768})
+                    page = context.new_page()
+                    
+                    # Acessa o site oficial do TCE-PR
+                    page.goto("https://www.tce.pr.gov.br/para-o-fiscalizado/sistemas/cadastro-de-restricoes/cadastro-de-restricoes-consultar.htm", timeout=60000)
+                    
+                    # Preenche os dados e clica em pesquisar
+                    page.wait_for_selector("select", timeout=15000)
+                    page.select_option("select", label="CNPJ")
+                    page.fill("input[type='text']", cnpj_limpo)
+                    page.click("text=Pesquisar")
+                    
+                    # Aguarda o carregamento da tabela ou resultado dinâmico
+                    page.wait_for_timeout(6000)
+                    
+                    # Tira o print real da tela com o resultado exato
+                    page.screenshot(path=nome_print_tce, full_page=True)
+                    browser.close()
+            except Exception as e:
+                # Caso ocorra falha no navegador, cria um print de aviso visual
+                st.warning(H := f"Aviso na automação do TCE: {e}")
 
-            elementos_tce.append(Paragraph("<b>Resultado da Consulta:</b>", estilo_negrito))
-            elementos_tce.append(Spacer(1, 5))
-            
-            # Caixa estilizada simulando o alerta da tela do TCE-PR
-            dados_alerta = [[Paragraph(f"<b>{status_tce_resultado}</b>", estilo_texto)]]
-            tabela_alerta = Table(dados_alerta, colWidths=[470])
-            tabela_alerta.setStyle(TableStyle([
-                ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#f1f5f9')),
-                ('BOX', (0,0), (-1,-1), 1, colors.HexColor('#cbd5e1')),
-                ('TOPPADDING', (0,0), (-1,-1), 10),
-                ('BOTTOMPADDING', (0,0), (-1,-1), 10),
-                ('LEFTPADDING', (0,0), (-1,-1), 10),
-                ('RIGHTPADDING', (0,0), (-1,-1), 10),
-            ]))
-            elementos_tce.append(tabela_alerta)
-            doc_tce.build(elementos_tce)
+        st.success("Processamento realizado com sucesso!")
 
-        st.success("Documentos de comprovação gerados com sucesso!")
-
-        # Seção de Downloads na Interface
-        st.markdown("### 📥 Documentos Oficiais para Download")
+        # Seção de Downloads e Visualização na Interface
+        st.markdown("### 📥 Documentos e Evidências Oficiais")
         
         col_dl1, col_dl2 = st.columns(2)
         
@@ -232,10 +217,16 @@ if arquivo_enviado is not None:
                 )
                 
         with col_dl2:
-            with open(nome_pdf_tce, "rb") as f_tce:
-                st.download_button(
-                    label="🖼️ Baixar Espelho TCE-PR (PDF)",
-                    data=f_tce,
-                    file_name=nome_pdf_tce,
-                    mime="application/pdf"
-                )
+            if os.path.exists(nome_print_tce):
+                with open(nome_print_tce, "rb") as f_print:
+                    st.download_button(
+                        label="🖼️ Baixar Print Real TCE-PR (PNG)",
+                        data=f_print,
+                        file_name=nome_print_tce,
+                        mime="image/png"
+                    )
+
+        # Exibe o print real diretamente na tela para conferência imediata
+        if os.path.exists(nome_print_tce):
+            st.markdown("### 👁️ Visualização da Tela Capturada (TCE-PR)")
+            st.image(nome_print_tce, caption="Print Oficial da Consulta no Portal do TCE-PR", use_column_width=True)
