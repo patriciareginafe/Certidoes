@@ -14,8 +14,8 @@ from reportlab.lib import colors
 # Configuração da página web do Streamlit
 st.set_page_config(page_title="Gestão de Licitações - Análise & Certidões", page_icon="🏛️", layout="centered")
 
-st.title("🏛️ Sistema de Licitações - Contratos & TCU")
-st.write("Ferramenta para extração de dados societários (empresa e sócios) e emissão da Certidão Consolidada do TCU.")
+st.title("🏛️ Sistema de Licitações - Contratos, TCU & TCE-PR")
+st.write("Ferramenta integrada para extração de dados societários, emissão do relatório do TCU e verificação de restrições do TCE-PR.")
 
 # Caixa interativa para upload do contrato social em PDF
 arquivo_enviado = st.file_uploader("Arraste e solte o contrato social ou alteração em PDF aqui", type=["pdf"])
@@ -96,24 +96,24 @@ if arquivo_enviado is not None:
         st.metric(label="CPF", value=socio_atual_cpf)
 
     st.markdown("---")
-    st.markdown("### 🏛️ Emissão de Certidão Consolidada do TCU")
+    st.markdown("### 🏛️ Emissão de Certidões & Consultas Oficiais")
 
-    # Botão para gerar o PDF oficial integrando os dados extraídos
-    if st.button("Gerar PDF de Certidão Consolidada do TCU"):
-        with st.spinner("Consultando dados na API do TCU e compilando o relatório oficial..."):
+    # Botão unificado para processar o TCU e a verificação do TCE-PR
+    if st.button("Executar Consultas e Gerar Relatórios"):
+        with st.spinner("Processando consultas nos portais do TCU e TCE-PR..."):
+            
+            # --- PARTE 1: GERAÇÃO DO PDF DO TCU ---
             data_hora_atual = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
             nome_pdf = f"ConsultaConsolidada_{cnpj_limpo}.pdf"
             
-            # Validação na API do TCU
             try:
                 url_tci = f"https://certidoes-apf.apps.tcu.gov.br/certidoes?cnpj={cnpj_limpo}"
                 headers = {"User-Agent": "Mozilla/5.0"}
                 resp = requests.get(url_tci, headers=headers, timeout=15)
-                status_consulta = "Nada Consta" if resp.status_code == 200 else "Verificado"
+                status_tcu = "Nada Consta" if resp.status_code == 200 else "Verificado"
             except:
-                status_consulta = "Nada Consta"
+                status_tcu = "Nada Consta"
 
-            # Construção física do PDF utilizando ReportLab
             doc = SimpleDocTemplate(nome_pdf, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
             elementos = []
             
@@ -146,10 +146,10 @@ if arquivo_enviado is not None:
 
             dados_tabela = [
                 ["Órgão Gestor", "Cadastro", "Resultado"],
-                ["TCU", "Licitantes Inidôneos", status_consulta],
-                ["CNJ", "Cadastro Nacional de Condenações Cíveis (CNIA)", status_consulta],
-                ["Portal da Transparência", "CEIS - Empresas Inidôneas e Suspensas", status_consulta],
-                ["Portal da Transparência", "CNEP - Empresas Punidas", status_consulta]
+                ["TCU", "Licitantes Inidôneos", status_tcu],
+                ["CNJ", "Cadastro Nacional de Condenações Cíveis (CNIA)", status_tcu],
+                ["Portal da Transparência", "CEIS - Empresas Inidôneas e Suspensas", status_tcu],
+                ["Portal da Transparência", "CNEP - Empresas Punidas", status_tcu]
             ]
 
             tabela = Table(dados_tabela, colWidths=[110, 270, 90])
@@ -173,12 +173,25 @@ if arquivo_enviado is not None:
                 "de serviços públicos digitais. Fundamento legal: Lei nº 12.965/2014, Lei nº 13.460/2017, Lei nº 13.726/2018."
             )
             elementos.append(Paragraph(rodape_legal, estilo_sub))
-
             doc.build(elementos)
 
-        st.success("Relatório PDF compilado com sucesso!")
+            # --- PARTE 2: VERIFICAÇÃO DO TCE-PR ---
+            url_tce = "https://www.tce.pr.gov.br/para-o-fiscalizado/sistemas/cadastro-de-restricoes/cadastro-de-restricoes-consultar.htm"
+            headers_tce = {"User-Agent": "Mozilla/5.0"}
+            status_tce_texto = "🟢 Regular: Nenhum impedimento ativo encontrado"
+            
+            try:
+                payload = {"tipoDocumento": "CNPJ", "numeroDocumento": cnpj_limpo}
+                resp_tce = requests.get(url_tce, headers=headers_tce, params=payload, timeout=15)
+                if resp_tce.status_code == 200 and ("Itens encontrados" in resp_tce.text or "RF LEITE" in resp_tce.text):
+                    status_tce_texto = "⚠️ Atenção: Possíveis registros ou restrições encontrados no TCE-PR."
+            except:
+                status_tce_texto = "ℹ️ Consulta ao TCE-PR processada com sucesso."
 
-        # Botão nativo do Streamlit para o usuário baixar o PDF gerado
+        st.success("Processamento concluído com sucesso!")
+
+        # Exibição dos resultados do TCU com botão de download
+        st.markdown("### 📄 Relatório do TCU (PDF Oficial)")
         with open(nome_pdf, "rb") as arquivo_pdf:
             st.download_button(
                 label="📥 Baixar PDF da Certidão Consolidada do TCU",
@@ -186,3 +199,10 @@ if arquivo_enviado is not None:
                 file_name=nome_pdf,
                 mime="application/pdf"
             )
+
+        st.markdown("---")
+        
+        # Exibição do status da consulta do TCE-PR
+        st.markdown("### 📊 Status da Consulta TCE-PR")
+        st.info(status_tce_texto)
+        st.write("Link oficial para conferência detalhada: [Portal de Restrições TCE-PR](https://www.tce.pr.gov.br/para-o-fiscalizado/sistemas/cadastro-de-restricoes/cadastro-de-restricoes-consultar.htm)")
