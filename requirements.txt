@@ -2,3 +2,5 @@ streamlit
 pdfplumber
 pytesseract
 pdf2image
+requests
+reportlab
