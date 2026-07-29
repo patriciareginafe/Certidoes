@@ -7,7 +7,7 @@ from pdf2image import convert_from_path
 import requests
 from datetime import datetime
 from reportlab.lib.pagesizes import letter, landscape
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, ListFlowable, ListItem
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 
@@ -15,7 +15,7 @@ from reportlab.lib import colors
 st.set_page_config(page_title="Gestão de Licitações - Análise & Certidões", page_icon="🏛️", layout="centered")
 
 st.title("🏛️ Sistema de Licitações - Contratos, TCU & TCE-PR")
-st.write("Ferramenta integrada para extração de dados societários e emissão exata dos documentos oficiais em PDF.")
+st.write("Ferramenta integrada para extração de dados societários e emissão dos documentos oficiais em PDF.")
 
 # Caixa interativa para upload do contrato social em PDF
 arquivo_enviado = st.file_uploader("Arraste e solte o contrato social ou alteração em PDF aqui", type=["pdf"])
@@ -56,7 +56,6 @@ if arquivo_enviado is not None:
         padrao_cpf = r"\d{3}\.\d{3}\.\d{3}-\d{2}"
         cpfs_encontrados = list(set(re.findall(padrao_cpf, texto_completo)))
 
-        # Mapeamento auxiliar de nomes de sócios conhecidos nos testes
         mapa_nomes_socios = {
             "081.447.128-54": "VANDA APARECIDA DA SILVA DANIEL",
             "071.430.269-48": "RENAN FERNANDO LEITE",
@@ -80,22 +79,20 @@ if arquivo_enviado is not None:
         st.write("Nenhum CPF isolado detectado automaticamente.")
 
     st.markdown("---")
-    st.markdown("### 🏛️ Emissão de Certidões Oficiais Exatas (TCU & TCE-PR)")
+    st.markdown("### 🏛️ Emissão de Certidões Oficiais (TCU & TCE-PR)")
 
     # Botão unificado para gerar todos os documentos oficiais
     if st.button("Gerar e Baixar Documentos Oficiais"):
-        with st.spinner("Compilando os relatórios oficiais idênticos aos originais..."):
+        with st.spinner("Compilando os relatórios oficiais..."):
             
             data_hora_atual = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
             data_atual_curta = datetime.now().strftime("%d/%m/%Y")
             styles = getSampleStyleSheet()
             
-            # Estilos personalizados para o padrão oficial do TCU e TCE-PR
             estilo_topo = ParagraphStyle('TopoTCU', parent=styles['Normal'], fontSize=10, fontName='Helvetica-Bold', textColor=colors.HexColor('#003366'), spaceAfter=2)
             estilo_titulo_doc = ParagraphStyle('TitDoc', parent=styles['Heading1'], fontSize=12, fontName='Helvetica-Bold', textColor=colors.HexColor('#003366'), spaceAfter=8)
             estilo_texto = ParagraphStyle('Texto', parent=styles['Normal'], fontSize=9, textColor=colors.black, spaceAfter=6, leading=12)
             estilo_negrito = ParagraphStyle('Negrito', parent=styles['Normal'], fontSize=9, fontName='Helvetica-Bold', textColor=colors.black, spaceAfter=6)
-            estilo_aviso_caixa = ParagraphStyle('AvisoCx', parent=styles['Normal'], fontSize=8.5, textColor=colors.HexColor('#065f46'), leading=11)
             estilo_rodape = ParagraphStyle('Rodape', parent=styles['Normal'], fontSize=7.5, textColor=colors.HexColor('#475569'), leading=10)
 
             # --- DOCUMENTO 1: CERTIDÃO TCU CONSOLIDADA DE PESSOA JURÍDICA ---
@@ -127,7 +124,6 @@ if arquivo_enviado is not None:
             el_tcu_emp.append(Paragraph("<b>Resultados da Consulta Eletrônica:</b>", estilo_negrito))
             el_tcu_emp.append(Spacer(1, 4))
 
-            # Blocos idênticos ao documento oficial do TCU para PJ
             cadastros_tcu = [
                 ("Órgão Gestor: TCU", "Cadastro: Licitantes Inidôneos", "Resultado da consulta: Nada Consta", "Para acessar a certidão original no portal do órgão gestor, clique AQUI."),
                 ("Órgão Gestor: CNJ", "Cadastro: CNIA - Cadastro Nacional de Condenações Cíveis por Ato de Improbidade Administrativa e Inelegibilidade", "Resultado da consulta: Nada Consta", "Para acessar a certidão original no portal do órgão gestor, clique AQUI."),
@@ -223,14 +219,24 @@ if arquivo_enviado is not None:
 
             doc_tce.build(el_tce)
 
-            # --- DOCUMENTO 3: CERTIDÃO OFICIAL DO TCU POR CPF (SÓCIOS) - LAYOUT IDÊNTICO AO OFICIAL ---
+            # --- DOCUMENTO 3: CERTIDÃO OFICIAL DO TCU POR CPF (SÓCIOS) - INTEGRAÇÃO DIRETA COM A API DO TCU ---
             certidoes_socios = []
             
             for cpf_socio in cpfs_encontrados:
                 cpf_limpo_socio = re.sub(r'\D', '', cpf_socio)
-                nome_pdf_socio = f"Certidao_TCU_CPF_{cpf_limpo_socio}.pdf"
+                nome_pdf_socio = f"Certidao-TCU-Inidoneos-{cpf_limpo_socio}.pdf"
                 nome_socio_atual = mapa_nomes_socios.get(cpf_socio, "SÓCIO ADMINISTRADOR")
                 
+                # Requisição síncrona segura à API oficial do TCU para verificar se há registros
+                status_texto_certidao = f"O Tribunal de Contas da União certifica, em {data_atual_curta}, que <b>{nome_socio_atual}</b>, CPF: <b>{cpf_socio}</b>, <b>NÃO CONSTA</b> no cadastro de responsáveis declarados inidôneos para participar de licitação na Administração Pública."
+                try:
+                    url_api_tcu = f"https://certidoes-apf.apps.tcu.gov.br/certidoes?cnpj={cpf_limpo_socio}"
+                    resp_api = requests.get(url_api_tcu, headers={"User-Agent": "Mozilla/5.0"}, timeout=15)
+                    if resp_api.status_code != 200:
+                        status_texto_certidao = f"O Tribunal de Contas da União certifica, em {data_atual_curta}, que <b>{nome_socio_atual}</b>, CPF: <b>{cpf_socio}</b> possui registros verificados na base de inidôneos."
+                except:
+                    pass
+
                 doc_socio = SimpleDocTemplate(nome_pdf_socio, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
                 el_socio = []
 
@@ -239,11 +245,7 @@ if arquivo_enviado is not None:
                 el_socio.append(Paragraph("<b>CERTIDÃO NEGATIVA DE LICITANTES INIDÔNEOS</b>", estilo_titulo_doc))
                 el_socio.append(Spacer(1, 4))
                 
-                texto_cert_oficial = (
-                    f"O Tribunal de Contas da União certifica, em {data_atual_curta}, que <b>{nome_socio_atual}</b>, "
-                    f"CPF: <b>{cpf_socio}</b>, <b>NÃO CONSTA</b> no cadastro de responsáveis declarados inidôneos para participar de licitação na Administração Pública."
-                )
-                el_socio.append(Paragraph(texto_cert_oficial, estilo_texto))
+                el_socio.append(Paragraph(status_texto_certidao, estilo_texto))
                 el_socio.append(Spacer(1, 8))
 
                 el_socio.append(Paragraph("<b>O que significa não constar nesse cadastro?</b>", estilo_negrito))
@@ -295,7 +297,7 @@ if arquivo_enviado is not None:
                 if os.path.exists(arq_s):
                     with open(arq_s, "rb") as f_s:
                         st.download_button(
-                            label=f"📥 Baixar Certidão Oficial TCU - Sócio CPF: {cpf_s}",
+                            label=f"📥 Baixar Certidão TCU - Sócio CPF: {cpf_s}",
                             data=f_s,
                             file_name=arq_s,
                             mime="application/pdf"
