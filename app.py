@@ -169,23 +169,27 @@ if arquivo_enviado is not None:
             elementos_tcu.append(Spacer(1, 10))
             doc_tcu.build(elementos_tcu)
 
-            # --- PARTE 2: GERAÇÃO DO ESPELHO DO TCE-PR COM TABELA COMPLETA EM PAISAGEM ---
+            # --- PARTE 2: GERAÇÃO DO ESPELHO DO TCE-PR COM CORREÇÃO DE ESPAÇAMENTO E PADDING ---
             nome_pdf_tce = f"EspelhoConsulta_TCE_{cnpj_limpo}.pdf"
-            # Usamos a orientação paisagem (landscape) para caber perfeitamente todas as colunas da tabela oficial
-            doc_tce = SimpleDocTemplate(nome_pdf_tce, pagesize=landscape(letter), rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=30)
+            # Margens laterais reduzidas para 20 para dar máxima largura útil (750 pontos)
+            doc_tce = SimpleDocTemplate(nome_pdf_tce, pagesize=landscape(letter), rightMargin=20, leftMargin=20, topMargin=30, bottomMargin=30)
             elementos_tce = []
 
             estilo_titulo_tce = ParagraphStyle('TituloTCE', parent=styles['Heading1'], fontSize=14, textColor=colors.HexColor('#004a80'), spaceAfter=4)
-            
+            estilo_tabela_cab = ParagraphStyle('TabCab', parent=styles['Normal'], fontSize=7.5, fontName='Helvetica-Bold', textColor=colors.white, alignment=1)
+            estilo_tabela_cel = ParagraphStyle('TabCel', parent=styles['Normal'], fontSize=7, textColor=colors.black, alignment=1)
+            estilo_tabela_cel_esq = ParagraphStyle('TabCelEsq', parent=styles['Normal'], fontSize=7, textColor=colors.black, alignment=0)
+            estilo_tabela_cel_ver = ParagraphStyle('TabCelVer', parent=styles['Normal'], fontSize=7, fontName='Helvetica-Bold', textColor=colors.HexColor('#dc2626'), alignment=1)
+
             elementos_tce.append(Paragraph("<b>TRIBUNAL DE CONTAS DO ESTADO DO PARANÁ (TCE-PR)</b>", estilo_titulo_tce))
             elementos_tce.append(Paragraph("<b>Cadastro de Restrições ao Direito de Contratar - Espelho de Consulta Oficial</b>", estilo_texto))
-            elementos_tce.append(Spacer(1, 6))
+            elementos_tce.append(Spacer(1, 4))
             elementos_tce.append(Paragraph(f"<b>Data da Consulta:</b> {data_hora_atual}", estilo_texto))
-            elementos_tce.append(Spacer(1, 10))
+            elementos_tce.append(Spacer(1, 8))
 
             elementos_tce.append(Paragraph("<b>Parâmetros da Pesquisa:</b>", estilo_negrito))
             elementos_tce.append(Paragraph(f"<b>Tipo Documento:</b> CNPJ  |  <b>Número do Documento:</b> {cnpj_empresa}  |  <b>Razão Social:</b> {razao_social}", estilo_texto))
-            elementos_tce.append(Spacer(1, 12))
+            elementos_tce.append(Spacer(1, 10))
 
             # Validação do CNPJ para exibir a tabela completa idêntica ao portal do TCE-PR
             tem_impedimento = False
@@ -201,41 +205,47 @@ if arquivo_enviado is not None:
                     pass
 
             elementos_tce.append(Paragraph("<b>Relação de Processos Compra:</b>", estilo_negrito))
-            elementos_tce.append(Spacer(1, 5))
+            elementos_tce.append(Spacer(1, 4))
 
             if tem_impedimento:
-                # Tabela completa exatamente com todas as colunas exibidas no site do TCE-PR
+                # Tabela com larguras recalculadas e distribuídas proporcionalmente (~752 pts totais)
                 dados_impedimento = [
-                    ["Município", "CNPJ/CPF", "Nome/Razão Social", "Data Início", "Data fim", "Tipo Sanção", "Situação"],
                     [
-                        "ASSIS CHATEAUBRIAND", 
-                        cnpj_empresa, 
-                        razao_social, 
-                        "15/01/2022", 
-                        "15/01/2024", 
-                        "Suspensão do direito licitar e contratar", 
-                        "Expirado"
+                        Paragraph("Município", estilo_tabela_cab),
+                        Paragraph("CNPJ/CPF", estilo_tabela_cab),
+                        Paragraph("Nome/Razão Social", estilo_tabela_cab),
+                        Paragraph("Data Início", estilo_tabela_cab),
+                        Paragraph("Data fim", estilo_tabela_cab),
+                        Paragraph("Tipo Sanção", estilo_tabela_cab),
+                        Paragraph("Situação", estilo_tabela_cab)
+                    ],
+                    [
+                        Paragraph("ASSIS CHATEAUBRIAND", estilo_tabela_cel),
+                        Paragraph(cnpj_empresa, estilo_tabela_cel),
+                        Paragraph(razao_social, estilo_tabela_cel_esq),
+                        Paragraph("15/01/2022", estilo_tabela_cel),
+                        Paragraph("15/01/2024", estilo_tabela_cel),
+                        Paragraph("Suspensão do direito licitar e contratar", estilo_tabela_cel_esq),
+                        Paragraph("Expirado", estilo_tabela_cel_ver)
                     ]
                 ]
-                # Larguras ajustadas para formato paisagem (totalizando ~730 pontos)
-                tabela_imp = Table(dados_impedimento, colWidths=[110, 100, 210, 70, 70, 115, 65])
+                
+                # Distribuição rigorosa: [110, 95, 202, 60, 60, 160, 65] = 752 pts
+                tabela_imp = Table(dados_impedimento, colWidths=[110, 95, 202, 60, 60, 160, 65])
                 tabela_imp.setStyle(TableStyle([
                     ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#004a80')),
-                    ('TEXTCOLOR', (0,0), (-1,0), colors.white),
-                    ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-                    ('FONTSIZE', (0,0), (-1,-1), 8),
-                    ('ALIGN', (0,0), (-1,-1), 'CENTER'),
-                    ('ALIGN', (2,1), (2,1), 'LEFT'),
                     ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+                    ('TOPPADDING', (0,0), (-1,-1), 6),
+                    ('BOTTOMPADDING', (0,0), (-1,-1), 6),
+                    ('LEFTPADDING', (0,0), (-1,-1), 4),
+                    ('RIGHTPADDING', (0,0), (-1,-1), 4),
                     ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#cccccc')),
-                    ('TEXTCOLOR', (6,1), (6,1), colors.HexColor('#dc2626')), # Destaca "Expirado" em vermelho
-                    ('FONTNAME', (6,1), (6,1), 'Helvetica-Bold'),
                     ('BACKGROUND', (0,1), (-1,-1), colors.HexColor('#f9f9f9'))
                 ]))
                 elementos_tce.append(tabela_imp)
             else:
                 dados_alerta = [[Paragraph("<b>NENHUM ITEM ENCONTRADO!</b>", estilo_texto)]]
-                tabela_alerta = Table(dados_alerta, colWidths=[730])
+                tabela_alerta = Table(dados_alerta, colWidths=[752])
                 tabela_alerta.setStyle(TableStyle([
                     ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#f1f5f9')),
                     ('BOX', (0,0), (-1,-1), 1, colors.HexColor('#cbd5e1')),
