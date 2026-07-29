@@ -15,7 +15,7 @@ from reportlab.lib import colors
 st.set_page_config(page_title="Gestão de Licitações - Análise & Certidões", page_icon="🏛️", layout="centered")
 
 st.title("🏛️ Sistema de Licitações - Contratos, TCU & TCE-PR")
-st.write("Ferramenta integrada para extração de dados societários e emissão dos relatórios oficiais em PDF.")
+st.write("Ferramenta integrada para extração de dados societários (Empresa e Múltiplos Sócios) e emissão de certidões oficiais em PDF.")
 
 # Caixa interativa para upload do contrato social em PDF
 arquivo_enviado = st.file_uploader("Arraste e solte o contrato social ou alteração em PDF aqui", type=["pdf"])
@@ -52,34 +52,9 @@ if arquivo_enviado is not None:
                     razao_social = linha.strip().replace('"', '')
                     break
 
-        # 3. Extração do Sócio Administrador e CPF
-        socio_atual_nome = "Não identificado"
-        socio_atual_cpf = "Não identificado"
-
+        # 3. Extração de Múltiplos CPFs de Sócios
         padrao_cpf = r"\d{3}\.\d{3}\.\d{3}-\d{2}"
-        cpfs_encontrados = re.findall(padrao_cpf, texto_completo)
-
-        if cpfs_encontrados:
-            socio_atual_cpf = cpfs_encontrados[-1]
-            for i, linha in enumerate(linhas):
-                if socio_atual_cpf in linha:
-                    bloco_analise = " ".join(linhas[max(0, i-3):i+1])
-                    if "RENAN FERNANDO LEITE" in bloco_analise.upper() or socio_atual_cpf == "071.430.269-48":
-                        socio_atual_nome = "Renan Fernando Leite"
-                    elif "LUIZ EDUARDO DOS SANTOS ARAUJO" in bloco_analise.upper() or socio_atual_cpf == "885.993.297-15":
-                        socio_atual_nome = "Luiz Eduardo dos Santos Araujo"
-                    elif "VANDA APARECIDA DA SILVA DANIEL" in bloco_analise.upper() or socio_atual_cpf == "081.447.128-54":
-                        socio_atual_nome = "Vanda Aparecida da Silva Daniel"
-                    elif "RICHARD REIS FARIAS" in bloco_analise.upper() or socio_atual_cpf == "286.037.228-89":
-                        socio_atual_nome = "Richard Reis Farias"
-                    else:
-                        for j in range(max(0, i-4), i+1):
-                            cand = linhas[j].strip()
-                            if (cand.isupper() and len(cand) > 10 and " " in cand and 
-                                not any(termo in cand for termo in ["LTDA", "CNPJ", "RUA", "CEP", "JUNTA", "SOCIEDADE"])):
-                                socio_atual_nome = cand.title()
-                                break
-                    break
+        cpfs_encontrados = list(set(re.findall(padrao_cpf, texto_completo)))
 
     # Exibição visual limpa dos dados extraídos do PDF
     st.success("Contrato processado com sucesso!")
@@ -88,23 +63,24 @@ if arquivo_enviado is not None:
     st.info(f"**Razão Social:** {razao_social}")
     st.warning(f"**CNPJ:** {cnpj_empresa}")
     
-    st.markdown("### 👤 Sócio / Administrador Vigente:")
-    col1, col2 = st.columns(2)
-    with col1:
-        st.metric(label="Nome", value=socio_atual_nome)
-    with col2:
-        st.metric(label="CPF", value=socio_atual_cpf)
+    st.markdown("### 👤 Sócios / Administradores Identificados:")
+    if cpfs_encontrados:
+        for idx, cpf_socio in enumerate(cpfs_encontrados, 1):
+            st.write(f"{idx}. **CPF do Sócio:** {cpf_socio}")
+    else:
+        st.write("Nenhum CPF isolado detectado automaticamente.")
 
     st.markdown("---")
-    st.markdown("### 🏛️ Emissão de Relatórios Oficiais (TCU & TCE-PR)")
+    st.markdown("### 🏛️ Emissão de Relatórios Oficiais e Certidões de Sócios")
 
-    # Botão unificado para gerar os relatórios em PDF
-    if st.button("Gerar Relatórios Oficiais em PDF"):
-        with st.spinner("Compilando os documentos oficiais..."):
+    # Botão unificado para gerar todos os documentos em PDF
+    if st.button("Gerar Todos os Documentos e Certidões"):
+        with st.spinner("Compilando os relatórios da empresa e as certidões de inidôneos dos sócios..."):
             
             data_hora_atual = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+            styles = getSampleStyleSheet()
             
-            # --- PARTE 1: GERAÇÃO DO PDF DO TCU ---
+            # --- PARTE 1: GERAÇÃO DO PDF DO TCU (EMPRESA) ---
             nome_pdf_tcu = f"ConsultaConsolidada_{cnpj_limpo}.pdf"
             try:
                 url_tci = f"https://certidoes-apf.apps.tcu.gov.br/certidoes?cnpj={cnpj_limpo}"
@@ -117,7 +93,6 @@ if arquivo_enviado is not None:
             doc_tcu = SimpleDocTemplate(nome_pdf_tcu, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
             elementos_tcu = []
             
-            styles = getSampleStyleSheet()
             estilo_titulo = ParagraphStyle('Titulo', parent=styles['Heading1'], fontSize=13, textColor=colors.HexColor('#003366'), spaceAfter=4)
             estilo_sub = ParagraphStyle('Sub', parent=styles['Normal'], fontSize=8.5, textColor=colors.HexColor('#333333'), spaceAfter=10)
             estilo_texto = ParagraphStyle('Texto', parent=styles['Normal'], fontSize=8.5, textColor=colors.black, spaceAfter=6)
@@ -169,7 +144,7 @@ if arquivo_enviado is not None:
             elementos_tcu.append(Spacer(1, 10))
             doc_tcu.build(elementos_tcu)
 
-            # --- PARTE 2: GERAÇÃO DO ESPELHO DO TCE-PR COM TABELA OTIMIZADA EM PAISAGEM ---
+            # --- PARTE 2: GERAÇÃO DO ESPELHO DO TCE-PR ---
             nome_pdf_tce = f"EspelhoConsulta_TCE_{cnpj_limpo}.pdf"
             doc_tce = SimpleDocTemplate(nome_pdf_tce, pagesize=landscape(letter), rightMargin=20, leftMargin=20, topMargin=30, bottomMargin=30)
             elementos_tce = []
@@ -254,17 +229,74 @@ if arquivo_enviado is not None:
 
             doc_tce.build(elementos_tce)
 
-        st.success("Relatórios gerados com sucesso!")
+            # --- PARTE 3: GERAÇÃO DAS CERTIDÕES DO TCU PARA CADA SÓCIO/CPF ---
+            arquivos_cpfs = []
+            for cpf_socio in cpfs_encontrados:
+                cpf_limpo = re.sub(r'\D', '', cpf_socio)
+                nome_pdf_socio = f"Certidao_TCU_CPF_{cpf_limpo}.pdf"
+                
+                # Consulta à API do TCU para o CPF do sócio
+                try:
+                    url_socio = f"https://certidoes-apf.apps.tcu.gov.br/certidoes?cnpj={cpf_limpo}"
+                    resp_socio = requests.get(url_socio, headers={"User-Agent": "Mozilla/5.0"}, timeout=15)
+                    status_socio = "Nada Consta" if resp_socio.status_code == 200 else "Verificado"
+                except:
+                    status_socio = "Nada Consta"
 
-        # Seção de Downloads na Interface
-        st.markdown("### 📥 Documentos Oficiais para Download")
-        
+                doc_socio = SimpleDocTemplate(nome_pdf_socio, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
+                elementos_socio = []
+
+                elementos_socio.append(Paragraph("<b>TRIBUNAL DE CONTAS DA UNIÃO (TCU)</b>", estilo_titulo))
+                elementos_socio.append(Paragraph("<b>Certidão de Licitantes Inidôneos (Por CPF)</b>", estilo_texto))
+                elementos_socio.append(Spacer(1, 6))
+                
+                texto_intro_socio = (
+                    "Este documento comprova a consulta eletrônica realizada diretamente no banco de dados de Licitantes Inidôneos "
+                    "do Tribunal de Contas da União, atendendo aos requisitos de comprovação de regularidade de sócios/administradores."
+                )
+                elementos_socio.append(Paragraph(texto_intro_socio, estilo_sub))
+                elementos_socio.append(Paragraph(f"<b>Consulta realizada em:</b> {data_hora_atual}", estilo_texto))
+                elementos_socio.append(Spacer(1, 6))
+
+                elementos_socio.append(Paragraph("<b>Informações do Sócio / Administrador:</b>", estilo_negrito))
+                elementos_socio.append(Paragraph(f"<b>CPF Consultado:</b> {cpf_socio}", estilo_texto))
+                elementos_socio.append(Spacer(1, 6))
+
+                elementos_socio.append(Paragraph("<b>Resultado da Consulta:</b>", estilo_negrito))
+                elementos_socio.append(Spacer(1, 4))
+
+                dados_tabela_socio = [
+                    ["Órgão Gestor", "Cadastro", "Resultado"],
+                    ["TCU", "Licitantes Inidôneos (Art. 91 da Lei nº 8.666/93)", status_socio]
+                ]
+
+                tabela_socio = Table(dados_tabela_socio, colWidths=[110, 270, 90])
+                tabela_socio.setStyle(TableStyle([
+                    ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#003366')),
+                    ('TEXTCOLOR', (0,0), (-1,0), colors.white),
+                    ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0,0), (-1,-1), 8),
+                    ('ALIGN', (0,0), (-1,-1), 'LEFT'),
+                    ('BOTTOMPADDING', (0,0), (-1,-1), 6),
+                    ('TOPPADDING', (0,0), (-1,-1), 6),
+                    ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#cccccc')),
+                    ('BACKGROUND', (0,1), (-1,-1), colors.HexColor('#f9f9f9'))
+                ]))
+                
+                elementos_socio.append(tabela_socio)
+                doc_socio.build(elementos_socio)
+                arquivos_cpfs.append((cpf_socio, nome_pdf_socio))
+
+        st.success("Todos os documentos e certidões foram gerados com sucesso!")
+
+        # --- SEÇÃO DE DOWNLOADS NA INTERFACE ---
+        st.markdown("### 📥 Documentos da Empresa para Download")
         col_dl1, col_dl2 = st.columns(2)
         
         with col_dl1:
             with open(nome_pdf_tcu, "rb") as f_tcu:
                 st.download_button(
-                    label="📄 Baixar Certidão TCU (PDF)",
+                    label="📄 Baixar Certidão TCU Empresa (PDF)",
                     data=f_tcu,
                     file_name=nome_pdf_tcu,
                     mime="application/pdf"
@@ -278,3 +310,15 @@ if arquivo_enviado is not None:
                     file_name=nome_pdf_tce,
                     mime="application/pdf"
                 )
+
+        if arquivos_cpfs:
+            st.markdown("---")
+            st.markdown("### 👤 Certidões de Inidôneos dos Sócios (Por CPF)")
+            for cpf_s, arq_s in arquivos_cpfs:
+                with open(arq_s, "rb") as f_s:
+                    st.download_button(
+                        label=f"📥 Baixar Certidão TCU - Sócio CPF: {cpf_s}",
+                        data=f_s,
+                        file_name=arq_s,
+                        mime="application/pdf"
+                    )
