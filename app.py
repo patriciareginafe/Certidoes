@@ -169,9 +169,8 @@ if arquivo_enviado is not None:
             elementos_tcu.append(Spacer(1, 10))
             doc_tcu.build(elementos_tcu)
 
-            # --- PARTE 2: GERAÇÃO DO ESPELHO DO TCE-PR COM CORREÇÃO DE ESPAÇAMENTO E PADDING ---
+            # --- PARTE 2: GERAÇÃO DO ESPELHO DO TCE-PR COM TABELA OTIMIZADA EM PAISAGEM ---
             nome_pdf_tce = f"EspelhoConsulta_TCE_{cnpj_limpo}.pdf"
-            # Margens laterais reduzidas para 20 para dar máxima largura útil (750 pontos)
             doc_tce = SimpleDocTemplate(nome_pdf_tce, pagesize=landscape(letter), rightMargin=20, leftMargin=20, topMargin=30, bottomMargin=30)
             elementos_tce = []
 
@@ -191,7 +190,6 @@ if arquivo_enviado is not None:
             elementos_tce.append(Paragraph(f"<b>Tipo Documento:</b> CNPJ  |  <b>Número do Documento:</b> {cnpj_empresa}  |  <b>Razão Social:</b> {razao_social}", estilo_texto))
             elementos_tce.append(Spacer(1, 10))
 
-            # Validação do CNPJ para exibir a tabela completa idêntica ao portal do TCE-PR
             tem_impedimento = False
             if cnpj_limpo == "35042079000106":
                 tem_impedimento = True
@@ -208,7 +206,6 @@ if arquivo_enviado is not None:
             elementos_tce.append(Spacer(1, 4))
 
             if tem_impedimento:
-                # Tabela com larguras recalculadas e distribuídas proporcionalmente (~752 pts totais)
                 dados_impedimento = [
                     [
                         Paragraph("Município", estilo_tabela_cab),
@@ -230,7 +227,6 @@ if arquivo_enviado is not None:
                     ]
                 ]
                 
-                # Distribuição rigorosa: [110, 95, 202, 60, 60, 160, 65] = 752 pts
                 tabela_imp = Table(dados_impedimento, colWidths=[110, 95, 202, 60, 60, 160, 65])
                 tabela_imp.setStyle(TableStyle([
                     ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#004a80')),
