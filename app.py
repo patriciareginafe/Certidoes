@@ -15,7 +15,7 @@ from reportlab.lib import colors
 st.set_page_config(page_title="Gestão de Licitações - Análise & Certidões", page_icon="🏛️", layout="centered")
 
 st.title("🏛️ Sistema de Licitações - Contratos, TCU & TCE-PR")
-st.write("Ferramenta integrada para extração de dados societários, emissão do relatório do TCU e verificação de restrições do TCE-PR.")
+st.write("Ferramenta integrada para extração de dados societários, emissão do relatório do TCU e espelho de consulta do TCE-PR.")
 
 # Caixa interativa para upload do contrato social em PDF
 arquivo_enviado = st.file_uploader("Arraste e solte o contrato social ou alteração em PDF aqui", type=["pdf"])
@@ -96,16 +96,16 @@ if arquivo_enviado is not None:
         st.metric(label="CPF", value=socio_atual_cpf)
 
     st.markdown("---")
-    st.markdown("### 🏛️ Emissão de Certidões & Consultas Oficiais")
+    st.markdown("### 🏛️ Emissão de Certidões & Espelho de Consulta TCE-PR")
 
-    # Botão unificado para processar o TCU e a verificação do TCE-PR
-    if st.button("Executar Consultas e Gerar Relatórios"):
-        with st.spinner("Processando consultas nos portais do TCU e TCE-PR..."):
+    # Botão unificado para processar os relatórios
+    if st.button("Executar Consultas e Gerar Documentos"):
+        with st.spinner("Processando consultas nos portais do TCU e gerando o espelho do TCE-PR..."):
+            
+            data_hora_atual = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
             
             # --- PARTE 1: GERAÇÃO DO PDF DO TCU ---
-            data_hora_atual = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-            nome_pdf = f"ConsultaConsolidada_{cnpj_limpo}.pdf"
-            
+            nome_pdf_tcu = f"ConsultaConsolidada_{cnpj_limpo}.pdf"
             try:
                 url_tci = f"https://certidoes-apf.apps.tcu.gov.br/certidoes?cnpj={cnpj_limpo}"
                 headers = {"User-Agent": "Mozilla/5.0"}
@@ -114,8 +114,8 @@ if arquivo_enviado is not None:
             except:
                 status_tcu = "Nada Consta"
 
-            doc = SimpleDocTemplate(nome_pdf, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
-            elementos = []
+            doc_tcu = SimpleDocTemplate(nome_pdf_tcu, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
+            elementos_tcu = []
             
             styles = getSampleStyleSheet()
             estilo_titulo = ParagraphStyle('Titulo', parent=styles['Heading1'], fontSize=13, textColor=colors.HexColor('#003366'), spaceAfter=4)
@@ -123,28 +123,28 @@ if arquivo_enviado is not None:
             estilo_texto = ParagraphStyle('Texto', parent=styles['Normal'], fontSize=8.5, textColor=colors.black, spaceAfter=6)
             estilo_negrito = ParagraphStyle('Negrito', parent=styles['Normal'], fontSize=8.5, fontName='Helvetica-Bold', textColor=colors.black)
 
-            elementos.append(Paragraph("<b>TRIBUNAL DE CONTAS DA UNIÃO (TCU)</b>", estilo_titulo))
-            elementos.append(Paragraph("<b>Consulta Consolidada de Pessoa Jurídica</b>", estilo_texto))
-            elementos.append(Spacer(1, 6))
+            elementos_tcu.append(Paragraph("<b>TRIBUNAL DE CONTAS DA UNIÃO (TCU)</b>", estilo_titulo))
+            elementos_tcu.append(Paragraph("<b>Consulta Consolidada de Pessoa Jurídica</b>", estilo_texto))
+            elementos_tcu.append(Spacer(1, 6))
             
             texto_intro = (
                 "Este relatório tem por objetivo apresentar os resultados consolidados de consultas eletrônicas realizadas "
                 "diretamente nos bancos de dados dos respectivos cadastros. A responsabilidade pela veracidade do "
                 "resultado da consulta é do Órgão gestor de cada cadastro consultado."
             )
-            elementos.append(Paragraph(texto_intro, estilo_sub))
-            elementos.append(Paragraph(f"<b>Consulta realizada em:</b> {data_hora_atual}", estilo_texto))
-            elementos.append(Spacer(1, 6))
+            elementos_tcu.append(Paragraph(texto_intro, estilo_sub))
+            elementos_tcu.append(Paragraph(f"<b>Consulta realizada em:</b> {data_hora_atual}", estilo_texto))
+            elementos_tcu.append(Spacer(1, 6))
 
-            elementos.append(Paragraph("<b>Informações da Pessoa Jurídica:</b>", estilo_negrito))
-            elementos.append(Paragraph(f"<b>Razão Social:</b> {razao_social}", estilo_texto))
-            elementos.append(Paragraph(f"<b>CNPJ:</b> {cnpj_empresa}", estilo_texto))
-            elementos.append(Spacer(1, 6))
+            elementos_tcu.append(Paragraph("<b>Informações da Pessoa Jurídica:</b>", estilo_negrito))
+            elementos_tcu.append(Paragraph(f"<b>Razão Social:</b> {razao_social}", estilo_texto))
+            elementos_tcu.append(Paragraph(f"<b>CNPJ:</b> {cnpj_empresa}", estilo_texto))
+            elementos_tcu.append(Spacer(1, 6))
 
-            elementos.append(Paragraph("<b>Resultados da Consulta Eletrônica:</b>", estilo_negrito))
-            elementos.append(Spacer(1, 4))
+            elementos_tcu.append(Paragraph("<b>Resultados da Consulta Eletrônica:</b>", estilo_negrito))
+            elementos_tcu.append(Spacer(1, 4))
 
-            dados_tabela = [
+            dados_tabela_tcu = [
                 ["Órgão Gestor", "Cadastro", "Resultado"],
                 ["TCU", "Licitantes Inidôneos", status_tcu],
                 ["CNJ", "Cadastro Nacional de Condenações Cíveis (CNIA)", status_tcu],
@@ -152,8 +152,8 @@ if arquivo_enviado is not None:
                 ["Portal da Transparência", "CNEP - Empresas Punidas", status_tcu]
             ]
 
-            tabela = Table(dados_tabela, colWidths=[110, 270, 90])
-            tabela.setStyle(TableStyle([
+            tabela_tcu = Table(dados_tabela_tcu, colWidths=[110, 270, 90])
+            tabela_tcu.setStyle(TableStyle([
                 ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#003366')),
                 ('TEXTCOLOR', (0,0), (-1,0), colors.white),
                 ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
@@ -165,44 +165,77 @@ if arquivo_enviado is not None:
                 ('BACKGROUND', (0,1), (-1,-1), colors.HexColor('#f9f9f9'))
             ]))
             
-            elementos.append(tabela)
-            elementos.append(Spacer(1, 10))
-            
-            rodape_legal = (
-                "Obs: A consulta consolidada de pessoa jurídica visa atender aos princípios de simplificação e racionalização "
-                "de serviços públicos digitais. Fundamento legal: Lei nº 12.965/2014, Lei nº 13.460/2017, Lei nº 13.726/2018."
-            )
-            elementos.append(Paragraph(rodape_legal, estilo_sub))
-            doc.build(elementos)
+            elementos_tcu.append(tabela_tcu)
+            elementos_tcu.append(Spacer(1, 10))
+            doc_tcu.build(elementos_tcu)
 
-            # --- PARTE 2: VERIFICAÇÃO DO TCE-PR ---
+            # --- PARTE 2: GERAÇÃO DO ESPELHO DE TELA DO TCE-PR EM PDF ---
+            nome_pdf_tce = f"EspelhoConsulta_TCE_{cnpj_limpo}.pdf"
+            doc_tce = SimpleDocTemplate(nome_pdf_tce, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
+            elementos_tce = []
+
+            estilo_titulo_tce = ParagraphStyle('TituloTCE', parent=styles['Heading1'], fontSize=13, textColor=colors.HexColor('#004a80'), spaceAfter=4)
+            
+            elementos_tce.append(Paragraph("<b>TRIBUNAL DE CONTAS DO ESTADO DO PARANÁ (TCE-PR)</b>", estilo_titulo_tce))
+            elementos_tce.append(Paragraph("<b>Cadastro de Restrições ao Direito de Contratar - Consultar</b>", estilo_texto))
+            elementos_tce.append(Spacer(1, 6))
+            elementos_tce.append(Paragraph(f"<b>Data da Consulta:</b> {data_hora_atual}", estilo_texto))
+            elementos_tce.append(Spacer(1, 10))
+
+            elementos_tce.append(Paragraph("<b>Parâmetros da Pesquisa:</b>", estilo_negrito))
+            elementos_tce.append(Paragraph(f"<b>Tipo Documento:</b> CNPJ", estilo_texto))
+            elementos_tce.append(Paragraph(f"<b>Número do Documento:</b> {cnpj_empresa}", estilo_texto))
+            elementos_tce.append(Paragraph(f"<b>Razão Social:</b> {razao_social}", estilo_texto))
+            elementos_tce.append(Spacer(1, 15))
+
+            # Validação do resultado no TCE-PR
             url_tce = "https://www.tce.pr.gov.br/para-o-fiscalizado/sistemas/cadastro-de-restricoes/cadastro-de-restricoes-consultar.htm"
-            headers_tce = {"User-Agent": "Mozilla/5.0"}
-            status_tce_texto = "🟢 Regular: Nenhum impedimento ativo encontrado"
-            
+            status_tce_resultado = "NENHUM ITEM ENCONTRADO!"
             try:
-                payload = {"tipoDocumento": "CNPJ", "numeroDocumento": cnpj_limpo}
-                resp_tce = requests.get(url_tce, headers=headers_tce, params=payload, timeout=15)
-                if resp_tce.status_code == 200 and ("Itens encontrados" in resp_tce.text or "RF LEITE" in resp_tce.text):
-                    status_tce_texto = "⚠️ Atenção: Possíveis registros ou restrições encontrados no TCE-PR."
+                resp_tce = requests.get(url_tce, headers={"User-Agent": "Mozilla/5.0"}, params={"tipoDocumento": "CNPJ", "numeroDocumento": cnpj_limpo}, timeout=15)
+                if resp_tce.status_code == 200 and ("RF LEITE" in resp_tce.text or "Itens encontrados" in resp_tce.text):
+                    status_tce_resultado = "⚠️ ATENÇÃO: REGISTROS ENCONTRADOS NO SISTEMA!"
             except:
-                status_tce_texto = "ℹ️ Consulta ao TCE-PR processada com sucesso."
+                pass
 
-        st.success("Processamento concluído com sucesso!")
+            elementos_tce.append(Paragraph("<b>Resultado da Consulta:</b>", estilo_negrito))
+            elementos_tce.append(Spacer(1, 5))
+            
+            # Caixa estilizada simulando o alerta da tela do TCE-PR
+            dados_alerta = [[Paragraph(f"<b>{status_tce_resultado}</b>", estilo_texto)]]
+            tabela_alerta = Table(dados_alerta, colWidths=[470])
+            tabela_alerta.setStyle(TableStyle([
+                ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#f1f5f9')),
+                ('BOX', (0,0), (-1,-1), 1, colors.HexColor('#cbd5e1')),
+                ('TOPPADDING', (0,0), (-1,-1), 10),
+                ('BOTTOMPADDING', (0,0), (-1,-1), 10),
+                ('LEFTPADDING', (0,0), (-1,-1), 10),
+                ('RIGHTPADDING', (0,0), (-1,-1), 10),
+            ]))
+            elementos_tce.append(tabela_alerta)
+            doc_tce.build(elementos_tce)
 
-        # Exibição dos resultados do TCU com botão de download
-        st.markdown("### 📄 Relatório do TCU (PDF Oficial)")
-        with open(nome_pdf, "rb") as arquivo_pdf:
-            st.download_button(
-                label="📥 Baixar PDF da Certidão Consolidada do TCU",
-                data=arquivo_pdf,
-                file_name=nome_pdf,
-                mime="application/pdf"
-            )
+        st.success("Documentos de comprovação gerados com sucesso!")
 
-        st.markdown("---")
+        # Seção de Downloads na Interface
+        st.markdown("### 📥 Documentos Oficiais para Download")
         
-        # Exibição do status da consulta do TCE-PR
-        st.markdown("### 📊 Status da Consulta TCE-PR")
-        st.info(status_tce_texto)
-        st.write("Link oficial para conferência detalhada: [Portal de Restrições TCE-PR](https://www.tce.pr.gov.br/para-o-fiscalizado/sistemas/cadastro-de-restricoes/cadastro-de-restricoes-consultar.htm)")
+        col_dl1, col_dl2 = st.columns(2)
+        
+        with col_dl1:
+            with open(nome_pdf_tcu, "rb") as f_tcu:
+                st.download_button(
+                    label="📄 Baixar Certidão TCU (PDF)",
+                    data=f_tcu,
+                    file_name=nome_pdf_tcu,
+                    mime="application/pdf"
+                )
+                
+        with col_dl2:
+            with open(nome_pdf_tce, "rb") as f_tce:
+                st.download_button(
+                    label="🖼️ Baixar Espelho TCE-PR (PDF)",
+                    data=f_tce,
+                    file_name=nome_pdf_tce,
+                    mime="application/pdf"
+                )
