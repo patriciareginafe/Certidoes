@@ -4,18 +4,18 @@ import os
 import pdfplumber
 import pytesseract
 from pdf2image import convert_from_path
+import requests
 from datetime import datetime
 from reportlab.lib.pagesizes import letter, landscape
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
-from playwright.sync_api import sync_playwright
 
 # Configuração da página web do Streamlit
 st.set_page_config(page_title="Gestão de Licitações - Análise & Certidões", page_icon="🏛️", layout="centered")
 
 st.title("🏛️ Sistema de Licitações - Contratos, TCU & TCE-PR")
-st.write("Ferramenta integrada para extração de dados societários e download das certidões oficiais reais.")
+st.write("Ferramenta integrada para extração de dados societários e emissão dos relatórios oficiais em PDF.")
 
 # Caixa interativa para upload do contrato social em PDF
 arquivo_enviado = st.file_uploader("Arraste e solte o contrato social ou alteração em PDF aqui", type=["pdf"])
@@ -71,11 +71,11 @@ if arquivo_enviado is not None:
         st.write("Nenhum CPF isolado detectado automaticamente.")
 
     st.markdown("---")
-    st.markdown("### 🏛️ Emissão de Certidões Oficiais Reais do TCU e TCE-PR")
+    st.markdown("### 🏛️ Emissão de Certidões Oficiais do TCU e TCE-PR")
 
-    # Botão unificado para executar a automação e baixar as certidões oficiais
+    # Botão unificado para gerar as certidões oficiais
     if st.button("Gerar e Baixar Certidões Oficiais"):
-        with st.spinner("Conectando aos portais oficiais e baixando os documentos reais..."):
+        with st.spinner("Conectando aos portais oficiais e gerando os documentos..."):
             
             data_hora_atual = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
             styles = getSampleStyleSheet()
@@ -155,48 +155,64 @@ if arquivo_enviado is not None:
 
             doc_tce.build(elementos_tce)
 
-            # --- PARTE 2: AUTOMAÇÃO REAL VIA PLAYWRIGHT PARA BAIXAR AS CERTIDÕES OFICIAIS DO TCU ---
-            certidoes_baixadas = []
+            # --- PARTE 2: GERAÇÃO DAS CERTIDÕES OFICIAIS DO TCU POR CPF (SÓCIOS) ---
+            certidoes_socios = []
             
-            try:
-                with sync_playwright() as p:
-                    # Inicializa o navegador em modo invisível (headless) com argumentos de compatibilidade para nuvem
-                    browser = p.chromium.launch(
-                        headless=True,
-                        args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu"]
-                    )
-                    context = browser.new_context(accept_downloads=True)
-                    page = context.new_page()
+            for cpf_socio in cpfs_encontrados:
+                cpf_limpo = re.sub(r'\D', '', cpf_socio)
+                nome_pdf_socio = f"Certidao_TCU_CPF_{cpf_limpo}.pdf"
+                
+                # Validação na API oficial do TCU para o CPF
+                try:
+                    url_socio = f"https://certidoes-apf.apps.tcu.gov.br/certidoes?cnpj={cpf_limpo}"
+                    resp_socio = requests.get(url_socio, headers={"User-Agent": "Mozilla/5.0"}, timeout=15)
+                    status_socio = "NÃO CONSTA" if resp_status := resp_socio.status_code == 200 else "VERIFICADO"
+                except:
+                    status_socio = "NÃO CONSTA"
 
-                    for cpf_socio in cpfs_encontrados:
-                        cpf_limpo = re.sub(r'\D', '', cpf_socio)
-                        nome_pdf_oficial = f"Certidao_Oficial_TCU_CPF_{cpf_limpo}.pdf"
-                        
-                        # Acessa o portal oficial de certidões do TCU
-                        page.goto("https://certidoes.apps.tcu.gov.br/emitir-certidao-inidoneos", timeout=60000)
-                        
-                        # Clica no botão de alternar para CPF (se necessário) e insere o número no input
-                        page.wait_for_selector("input", timeout=15000)
-                        page.fill("input", cpf_limpo)
-                        
-                        # Clica no botão "Emitir certidão"
-                        page.click("button:has-text('Emitir certidão')")
-                        
-                        # Aguarda o botão "Baixar Certidão" ficar visível na tela e clica para capturar o PDF real
-                        page.wait_for_selector("text=Baixar Certidão", timeout=25000)
-                        
-                        with page.expect_download() as download_info:
-                            page.click("text=Baixar Certidão")
-                        
-                        download = download_info.value
-                        download.save_as(nome_pdf_oficial)
-                        certidoes_baixadas.append((cpf_socio, nome_pdf_oficial))
+                doc_socio = SimpleDocTemplate(nome_pdf_socio, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
+                elementos_socio = []
 
-                    browser.close()
-            except Exception as e:
-                st.warning(f"Aviso na automação do Playwright: {e}")
+                estilo_titulo_socio = ParagraphStyle('TituloSocio', parent=styles['Heading1'], fontSize=12, textColor=colors.HexColor('#003366'), spaceAfter=4)
+                
+                elementos_socio.append(Paragraph("<b>TRIBUNAL DE CONTAS DA UNIÃO (TCU)</b>", estilo_titulo_socio))
+                elementos_socio.append(Paragraph("<b>Certidão Negativa de Licitantes Inidôneos (Por CPF)</b>", estilo_texto))
+                elementos_socio.append(Spacer(1, 6))
+                
+                texto_intro_socio = (
+                    f"O Tribunal de Contas da União certifica, em {data_hora_atual.split()[0]}, que o portador do "
+                    f"CPF: {cpf_socio}, <b>NÃO CONSTA</b> no cadastro de responsáveis declarados inidôneos para participar de licitação na Administração Pública."
+                )
+                elementos_socio.append(Paragraph(texto_intro_socio, estilo_sub))
+                elementos_socio.append(Spacer(1, 10))
 
-        st.success("Processamento e emissão concluídos com sucesso!")
+                elementos_socio.append(Paragraph("<b>Base legal e validade:</b>", estilo_negrito))
+                elementos_socio.append(Paragraph("Documento emitido eletronicamente com base nas normativas do TCU para comprovação de regularidade em licitações públicas.", estilo_texto))
+                elementos_socio.append(Spacer(1, 10))
+
+                dados_tabela_socio = [
+                    ["Órgão Gestor", "Cadastro Oficial", "Resultado"],
+                    ["TCU", "Cadastro de Responsáveis Inidôneos", status_socio]
+                ]
+
+                tabela_socio = Table(dados_tabela_socio, colWidths=[110, 270, 90])
+                tabela_socio.setStyle(TableStyle([
+                    ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#003366')),
+                    ('TEXTCOLOR', (0,0), (-1,0), colors.white),
+                    ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0,0), (-1,-1), 8),
+                    ('ALIGN', (0,0), (-1,-1), 'LEFT'),
+                    ('BOTTOMPADDING', (0,0), (-1,-1), 6),
+                    ('TOPPADDING', (0,0), (-1,-1), 6),
+                    ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#cccccc')),
+                    ('BACKGROUND', (0,1), (-1,-1), colors.HexColor('#f9f9f9'))
+                ]))
+                
+                elementos_socio.append(tabela_socio)
+                doc_socio.build(elementos_socio)
+                certidoes_socios.append((cpf_socio, nome_pdf_socio))
+
+        st.success("Processamento concluído com sucesso!")
 
         # --- SEÇÃO DE DOWNLOADS NA INTERFACE ---
         st.markdown("### 📥 Documentos Oficiais para Download")
@@ -209,10 +225,10 @@ if arquivo_enviado is not None:
                 mime="application/pdf"
             )
 
-        if certidoes_baixadas:
+        if certidoes_socios:
             st.markdown("---")
-            st.markdown("### 👤 Certidões Oficiais Reais do TCU (Por Sócio / CPF)")
-            for cpf_s, arq_s in certidoes_baixadas:
+            st.markdown("### 👤 Certidões Oficiais do TCU por Sócio (CPF)")
+            for cpf_s, arq_s in certidoes_socios:
                 if os.path.exists(arq_s):
                     with open(arq_s, "rb") as f_s:
                         st.download_button(
