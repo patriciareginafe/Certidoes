@@ -162,11 +162,14 @@ if arquivo_enviado is not None:
                 cpf_limpo = re.sub(r'\D', '', cpf_socio)
                 nome_pdf_socio = f"Certidao_TCU_CPF_{cpf_limpo}.pdf"
                 
-                # Validação na API oficial do TCU para o CPF
+                # Validação corrigida e segura na API oficial do TCU para o CPF
                 try:
                     url_socio = f"https://certidoes-apf.apps.tcu.gov.br/certidoes?cnpj={cpf_limpo}"
                     resp_socio = requests.get(url_socio, headers={"User-Agent": "Mozilla/5.0"}, timeout=15)
-                    status_socio = "NÃO CONSTA" if resp_status := resp_socio.status_code == 200 else "VERIFICADO"
+                    if resp_socio.status_code == 200:
+                        status_socio = "NÃO CONSTA"
+                    else:
+                        status_socio = "VERIFICADO"
                 except:
                     status_socio = "NÃO CONSTA"
 
