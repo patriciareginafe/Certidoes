@@ -80,6 +80,12 @@ if arquivo_enviado is not None:
             data_hora_atual = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
             styles = getSampleStyleSheet()
             
+            # Definição universal de estilos para evitar erros de escopo
+            estilo_titulo = ParagraphStyle('Titulo', parent=styles['Heading1'], fontSize=13, textColor=colors.HexColor('#003366'), spaceAfter=4)
+            estilo_sub = ParagraphStyle('Sub', parent=styles['Normal'], fontSize=8.5, textColor=colors.HexColor('#333333'), spaceAfter=10)
+            estilo_texto = ParagraphStyle('Texto', parent=styles['Normal'], fontSize=8.5, textColor=colors.black, spaceAfter=6)
+            estilo_negrito = ParagraphStyle('Negrito', parent=styles['Normal'], fontSize=8.5, fontName='Helvetica-Bold', textColor=colors.black)
+
             # --- PARTE 1: ESPELHO DO TCE-PR ---
             nome_pdf_tce = f"EspelhoConsulta_TCE_{cnpj_limpo}.pdf"
             doc_tce = SimpleDocTemplate(nome_pdf_tce, pagesize=landscape(letter), rightMargin=20, leftMargin=20, topMargin=30, bottomMargin=30)
@@ -90,8 +96,6 @@ if arquivo_enviado is not None:
             estilo_tabela_cel = ParagraphStyle('TabCel', parent=styles['Normal'], fontSize=7, textColor=colors.black, alignment=1)
             estilo_tabela_cel_esq = ParagraphStyle('TabCelEsq', parent=styles['Normal'], fontSize=7, textColor=colors.black, alignment=0)
             estilo_tabela_cel_ver = ParagraphStyle('TabCelVer', parent=styles['Normal'], fontSize=7, fontName='Helvetica-Bold', textColor=colors.HexColor('#dc2626'), alignment=1)
-            estilo_texto = ParagraphStyle('Texto', parent=styles['Normal'], fontSize=8.5, textColor=colors.black, spaceAfter=6)
-            estilo_negrito = ParagraphStyle('Negrito', parent=styles['Normal'], fontSize=8.5, fontName='Helvetica-Bold', textColor=colors.black)
 
             elementos_tce.append(Paragraph("<b>TRIBUNAL DE CONTAS DO ESTADO DO PARANÁ (TCE-PR)</b>", estilo_titulo_tce))
             elementos_tce.append(Paragraph("<b>Cadastro de Restrições ao Direito de Contratar - Espelho de Consulta Oficial</b>", estilo_texto))
@@ -162,7 +166,7 @@ if arquivo_enviado is not None:
                 cpf_limpo = re.sub(r'\D', '', cpf_socio)
                 nome_pdf_socio = f"Certidao_TCU_CPF_{cpf_limpo}.pdf"
                 
-                # Validação corrigida e segura na API oficial do TCU para o CPF
+                # Validação segura na API oficial do TCU para o CPF
                 try:
                     url_socio = f"https://certidoes-apf.apps.tcu.gov.br/certidoes?cnpj={cpf_limpo}"
                     resp_socio = requests.get(url_socio, headers={"User-Agent": "Mozilla/5.0"}, timeout=15)
